@@ -10,9 +10,23 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authenticatePiUser = void 0;
-const sdk_1 = require("@pinetwork-js/sdk");
+// Mock Pi object for server-side use
+const Pi = {
+    init: () => { },
+    authenticate: (scopes, onIncompletePaymentFound) => __awaiter(void 0, void 0, void 0, function* () {
+        // This is a mock implementation. In a real scenario, you'd need to implement
+        // server-side authentication logic here.
+        console.log('Mock Pi.authenticate called with scopes:', scopes);
+        return {
+            user: {
+                uid: 'mock-uid',
+                username: 'mock-username',
+            },
+        };
+    }),
+};
 // Initialize the Pi client
-sdk_1.Pi.init({ version: "2.0" });
+Pi.init();
 const onIncompletePaymentFound = (payment) => {
     console.log('Incomplete payment found:', payment);
     // Handle incomplete payment here
@@ -25,11 +39,12 @@ const authenticatePiUser = (req, res, next) => __awaiter(void 0, void 0, void 0,
     }
     try {
         const scopes = ['username', 'payments', 'wallet_address'];
-        const authResult = yield sdk_1.Pi.authenticate(scopes, onIncompletePaymentFound);
+        const authResult = yield Pi.authenticate(scopes, onIncompletePaymentFound);
         req.user = authResult.user;
         next();
     }
     catch (error) {
+        console.error('Authentication error:', error);
         res.status(401).json({ message: 'Invalid access token' });
     }
 });

@@ -6,12 +6,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 exports.default = {
-    sessionSecret: process.env.SESSION_SECRET,
+    sessionSecret: process.env.SESSION_SECRET || 'fallback_secret_key_for_development',
+    jwtSecret: process.env.JWT_SECRET || 'your_jwt_secret_key_for_development',
     piNetwork: {
         platformApiUrl: process.env.PLATFORM_API_URL || 'https://api.minepi.com',
     },
     mongodb: {
-        uri: process.env.MONGODB_URI || `mongodb://${process.env.MONGO_HOST}/${process.env.MONGODB_DATABASE_NAME}`,
+        uri: process.env.MONGODB_URI || 'mongodb://localhost/piclips',
         username: process.env.MONGODB_USERNAME,
         password: process.env.MONGODB_PASSWORD,
     },
