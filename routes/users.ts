@@ -29,7 +29,9 @@ router.post('/authenticate', async (req: Request, res: Response) => {
     }
 
     // Generate JWT token
-    const token = jwt.sign({ id: user._id }, config.jwtSecret, { expiresIn: '1d' });
+    //const token = jwt.sign({ id: user._id }, config.jwtSecret, { expiresIn: '1d' });
+    //Replaced Genrate JWT token with JWT_SECRET created
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET as string, { expiresIn: '1d' });
 
     res.json({ user, token });
   } catch (error) {
