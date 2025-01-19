@@ -1,0 +1,50 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "lib": ["es6", "dom"],
+    "allowJs": true,
+    "outDir": "build",
+    "rootDir": ".",
+    "strict": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "types": ["node", "express", "express-session", "multer"],
+    "paths": {
+      "express": ["./node_modules/@types/express"]
+    }
+  },
+  "include": ["**/*.ts", "types/**/*.d.ts"],
+  "exclude": ["node_modules"]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
