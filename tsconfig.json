@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "es2018",
     "module": "commonjs",
-    "lib": ["es6", "dom"],
+    "lib": ["es2018", "dom"],
     "allowJs": true,
-    "outDir": "build",
+    "outDir": "dist",
     "rootDir": ".",
     "strict": true,
     "noImplicitAny": true,
@@ -20,8 +20,10 @@
     }
   },
   "include": ["**/*.ts", "types/**/*.d.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }
+
+
 
 
 
