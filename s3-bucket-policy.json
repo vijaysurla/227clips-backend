@@ -1,0 +1,16 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "AllowAppUserAccess",
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": "arn:aws:iam::897729122292:user/piclips-app-user"
+        },
+        "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
+        "Resource": ["arn:aws:s3:::pi-clips-app", "arn:aws:s3:::pi-clips-app/uploads/*"]
+      }
+    ]
+  }
+  
+  

@@ -14,7 +14,13 @@ import {
   TipDocument,
 } from "../models/schemas"
 import { verifyToken } from "./users"
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  S3ServiceException,
+} from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 const router = express.Router()
@@ -44,11 +50,23 @@ async function uploadFileToS3(file: Express.Multer.File, key: string) {
   }
 
   const command = new PutObjectCommand(params)
-  await s3Client.send(command)
-
-  const url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
-  console.log(`File uploaded successfully to S3. URL: ${url}`)
-  return url
+  try {
+    await s3Client.send(command)
+    const url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+    console.log(`File uploaded successfully to S3. URL: ${url}`)
+    return url
+  } catch (error) {
+    if (error instanceof S3ServiceException) {
+      console.error("S3 Error:", {
+        message: error.message,
+        name: error.name,
+        $metadata: error.$metadata,
+      })
+    } else {
+      console.error("Unknown error during upload:", error)
+    }
+    throw error // Re-throw the error to be handled by your error middleware
+  }
 }
 
 // POST route to handle video upload
@@ -115,16 +133,15 @@ router.get("/user/:userId", verifyToken, async (req: Request, res: Response) => 
 // GET route to fetch all videos (public)
 router.get("/", async (req: Request, res: Response) => {
   try {
+    const s3BucketUrl = process.env.AWS_S3_BUCKET_URL || "https://your-bucket-name.s3.amazonaws.com"
     const videos = await Video.find({ privacy: "public" })
       .populate("user", "username displayName avatar")
       .sort({ createdAt: -1 })
 
     const videosWithFullUrls = videos.map((video) => ({
       ...video.toObject(),
-      url: `${process.env.API_URL}/videos/${video._id}/stream`,
-      thumbnail: video.thumbnail.startsWith("http")
-        ? video.thumbnail
-        : `${process.env.API_URL}/videos/${video._id}/thumbnail`,
+      url: `${s3BucketUrl}/${video._id}/stream`,
+      thumbnail: `${s3BucketUrl}/${video._id}/thumbnail`,
     }))
 
     res.json(videosWithFullUrls)
@@ -510,6 +527,10 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 })
 
 export default router
+
+
+
+
 
 
 
