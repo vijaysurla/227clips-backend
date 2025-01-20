@@ -28,7 +28,8 @@ mongoose
   })
   .then(() => {
     console.log("Connected to MongoDB")
-    console.log("Database:", mongoose.connection.db?.databaseName || "Unknown")
+    const dbName = mongoose.connection.db?.databaseName
+    console.log("Database:", dbName || "Unknown")
   })
   .catch((err) => {
     console.error("MongoDB connection error:", err)
@@ -86,11 +87,40 @@ app.use((req, res, next) => {
   next()
 })
 
+// Root route handler
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to the PiClips API" })
+})
+
+// Database connection test route
+app.get("/api/db-test", async (req, res) => {
+  try {
+    if (!mongoose.connection.db) {
+      throw new Error("Database connection not established")
+    }
+    await mongoose.connection.db.admin().ping()
+    res.json({
+      message: "Successfully connected to MongoDB",
+      database: mongoose.connection.db.databaseName,
+    })
+  } catch (error) {
+    console.error("Database connection test failed:", error)
+    res.status(500).json({
+      message: "Failed to connect to MongoDB",
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
 // Routes
 app.use("/api/users", userRoutes)
 app.use("/api/videos", videoRoutes)
-// Add the search route to your Express app
 app.use("/api/search", searchRoutes)
+
+// 404 Not Found handler
+app.use((req, res, next) => {
+  res.status(404).json({ message: "Route not found" })
+})
 
 // Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -101,11 +131,16 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   })
 })
 
-app.listen(config.port, () => {
-  console.log(`Server running on port ${config.port}`)
+const PORT = config.port || 3000
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
 })
 
 export default app
+
+
+
+
 
 
 
