@@ -88,7 +88,7 @@ router.post("/", verifyToken, upload.single("video"), async (req: Request, res: 
 
     console.log(`Saving video document to database. Title: ${title}, User: ${userId}`)
     const savedVideo = await video.save()
-    console.log(`Video document saved successfully. ID: ${savedVideo._id}`)
+    console.log(`Video document saved successfully. ID: ${savedVideo._id}, URL: ${savedVideo.url}`)
 
     await User.findByIdAndUpdate(userId, { $inc: { uploadedVideosCount: 1 } })
     console.log(`Updated user's uploadedVideosCount. User ID: ${userId}`)
@@ -508,6 +508,8 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 })
 
 export default router
+
+
 
 
 
