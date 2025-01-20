@@ -71,8 +71,8 @@ router.post("/", verifyToken, upload.single("video"), async (req: Request, res: 
     const video = new Video({
       title,
       description,
-      url: videoUrl,
-      thumbnail: thumbnailUrl,
+      url: videoUrl, // Store the full S3 URL
+      thumbnail: thumbnailUrl, // Store the full S3 URL
       user: userId,
       privacy: privacy || "public",
     })
@@ -453,11 +453,21 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Video not found" })
     }
 
+    // Check if the video.url is already a full URL
+    let videoUrl: URL
+    try {
+      videoUrl = new URL(video.url)
+    } catch {
+      // If video.url is not a valid URL, assume it's a key and construct the S3 URL
+      videoUrl = new URL(
+        `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${video.url}`,
+      )
+    }
+
     // Get a signed URL for the video
     const s3Params = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
-      Key: new URL(video.url).pathname.slice(1), // Remove leading '/'
-      Expires: 60 * 5, // URL expires in 5 minutes
+      Key: videoUrl.pathname.slice(1), // Remove leading '/'
     }
 
     const command = new GetObjectCommand(s3Params)
@@ -465,13 +475,23 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 
     // Redirect to the signed URL
     res.redirect(signedUrl)
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error streaming video:", error)
-    res.status(500).json({ message: "Server error while streaming video" })
+    res.status(500).json({
+      message: "Server error while streaming video",
+      error:
+        process.env.NODE_ENV === "development" && error instanceof Error
+          ? error.message
+          : "An unexpected error occurred",
+    })
   }
 })
 
 export default router
+
+
+
+
 
 
 
