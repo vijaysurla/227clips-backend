@@ -1,21 +1,19 @@
 import express from "express"
-import searchRoutes from "./routes/search"
+import searchRoutes from "./routes/search.js"
 import cors from "cors"
 import mongoose from "mongoose"
 import session from "express-session"
 import MongoStore from "connect-mongo"
-import config from "./config"
-import userRoutes from "./routes/users"
-import videoRoutes from "./routes/videos"
-import { User, type UserDocument } from "./models/schemas"
+import config from "./config.js"
+import userRoutes from "./routes/users.js"
+import videoRoutes from "./routes/videos.js"
+import { User } from "./models/schemas.js"
 import path from "path"
+import { fileURLToPath } from "url"
+import { S3Client } from "@aws-sdk/client-s3"
 
-declare module "express-session" {
-  interface SessionData {
-    user?: UserDocument
-    accessToken?: string
-  }
-}
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 
@@ -112,6 +110,21 @@ app.get("/api/db-test", async (req, res) => {
   }
 })
 
+// Configure AWS S3
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+})
+
+// Test S3 connection
+s3Client.config.credentials().then(
+  () => console.log("Successfully connected to AWS"),
+  (err) => console.error("Failed to connect to AWS", err),
+)
+
 // Routes
 app.use("/api/users", userRoutes)
 app.use("/api/videos", videoRoutes)
@@ -128,6 +141,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({
     message: "Internal server error",
     error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   })
 })
 
@@ -137,6 +151,8 @@ app.listen(PORT, () => {
 })
 
 export default app
+
+
 
 
 

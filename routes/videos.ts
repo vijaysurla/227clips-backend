@@ -28,7 +28,7 @@ const router = express.Router()
 
 // Configure AWS S3
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
+  region: config.s3.region,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -44,7 +44,7 @@ async function uploadFileToS3(file: Express.Multer.File, key: string) {
   key = key.replace(/^\//, "") // Remove leading slash if present
   console.log(`Attempting to upload file to S3. Key: ${key}, File name: ${file.originalname}, Size: ${file.size} bytes`)
   const params = {
-    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Bucket: config.s3.bucketName,
     Key: key,
     Body: file.buffer,
     ContentType: file.mimetype,
@@ -53,7 +53,7 @@ async function uploadFileToS3(file: Express.Multer.File, key: string) {
   const command = new PutObjectCommand(params)
   try {
     await s3Client.send(command)
-    const url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+    const url = `https://${config.s3.bucketName}.s3.${config.s3.region}.amazonaws.com/${key}`
     console.log(`File uploaded successfully to S3. URL: ${url}`)
     return url
   } catch (error) {
@@ -134,7 +134,7 @@ router.get("/user/:userId", verifyToken, async (req: Request, res: Response) => 
 // GET route to fetch all videos (public)
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const s3BucketUrl = `https://${config.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`
+    const s3BucketUrl = `https://${config.s3.bucketName}.s3.${config.s3.region}.amazonaws.com`
     const videos = await Video.find({ privacy: "public" })
       .populate("user", "username displayName avatar")
       .sort({ createdAt: -1 })
@@ -355,7 +355,7 @@ router.delete("/:id", verifyToken, async (req: Request, res: Response) => {
     // Delete the video file from S3
     const videoKey = new URL(video.url).pathname.slice(1) // Remove leading '/'
     const deleteVideoCommand = new DeleteObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Bucket: config.s3.bucketName,
       Key: videoKey,
     })
     await s3Client.send(deleteVideoCommand)
@@ -363,7 +363,7 @@ router.delete("/:id", verifyToken, async (req: Request, res: Response) => {
     // Delete the thumbnail from S3
     const thumbnailKey = new URL(video.thumbnail).pathname.slice(1) // Remove leading '/'
     const deleteThumbnailCommand = new DeleteObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Bucket: config.s3.bucketName,
       Key: thumbnailKey,
     })
     await s3Client.send(deleteThumbnailCommand)
@@ -502,7 +502,7 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 
     const contentType = "video/mp4" // Adjust this if you have different video formats
     const command = new GetObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Bucket: config.s3.bucketName,
       Key: key,
     })
     const signedUrl = await getSignedUrl(s3Client, command, {
@@ -524,6 +524,8 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 })
 
 export default router
+
+
 
 
 

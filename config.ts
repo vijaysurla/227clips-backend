@@ -15,10 +15,18 @@ export default {
     password: process.env.MONGODB_PASSWORD,
   },
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
-  port: process.env.PORT || 5000,
+  port: Number.parseInt(process.env.PORT || "5000", 10),
   environment: process.env.NODE_ENV || "development",
-  S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME || "your-default-bucket-name",
+  s3: {
+    bucketName: process.env.AWS_S3_BUCKET_NAME || "your-default-bucket-name",
+    region: process.env.AWS_REGION || "us-east-1",
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+  apiUrl: process.env.API_URL || "http://localhost:5000/api",
 }
+
+
 
 
 
