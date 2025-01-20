@@ -34,6 +34,7 @@ const upload = multer({ storage: storage })
 
 // Helper function to upload file to S3
 async function uploadFileToS3(file: Express.Multer.File, key: string) {
+  console.log(`Attempting to upload file to S3. Key: ${key}, File name: ${file.originalname}, Size: ${file.size} bytes`)
   const params = {
     Bucket: process.env.AWS_S3_BUCKET_NAME,
     Key: key,
@@ -44,7 +45,9 @@ async function uploadFileToS3(file: Express.Multer.File, key: string) {
   const command = new PutObjectCommand(params)
   await s3Client.send(command)
 
-  return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+  const url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+  console.log(`File uploaded successfully to S3. URL: ${url}`)
+  return url
 }
 
 // POST route to handle video upload
@@ -52,33 +55,42 @@ router.post("/", verifyToken, upload.single("video"), async (req: Request, res: 
   try {
     const file = req.file
     if (!file) {
+      console.log("No video file uploaded")
       return res.status(400).json({ message: "No video file uploaded" })
     }
+
+    console.log(`Received video upload request. File name: ${file.originalname}, Size: ${file.size} bytes`)
 
     const { title, description, privacy } = req.body
     const userId = (req as any).userId
 
     // Upload video to S3
     const videoKey = `videos/${Date.now()}-${file.originalname}`
+    console.log(`Uploading video to S3. Key: ${videoKey}`)
     const videoUrl = await uploadFileToS3(file, videoKey)
+    console.log(`Video uploaded successfully. URL: ${videoUrl}`)
 
     // Generate and upload thumbnail
-    // Note: For this example, we're using the first frame of the video as a thumbnail.
-    // In a production environment, you might want to use a library like ffmpeg to generate a proper thumbnail.
     const thumbnailKey = `thumbnails/${Date.now()}-${path.parse(file.originalname).name}.jpg`
+    console.log(`Uploading thumbnail to S3. Key: ${thumbnailKey}`)
     const thumbnailUrl = await uploadFileToS3(file, thumbnailKey)
+    console.log(`Thumbnail uploaded successfully. URL: ${thumbnailUrl}`)
 
     const video = new Video({
       title,
       description,
-      url: videoUrl, // Store the full S3 URL
-      thumbnail: thumbnailUrl, // Store the full S3 URL
+      url: videoUrl,
+      thumbnail: thumbnailUrl,
       user: userId,
       privacy: privacy || "public",
     })
 
+    console.log(`Saving video document to database. Title: ${title}, User: ${userId}`)
     const savedVideo = await video.save()
+    console.log(`Video document saved successfully. ID: ${savedVideo._id}`)
+
     await User.findByIdAndUpdate(userId, { $inc: { uploadedVideosCount: 1 } })
+    console.log(`Updated user's uploadedVideosCount. User ID: ${userId}`)
 
     res.status(201).json(savedVideo)
   } catch (error) {
@@ -448,20 +460,25 @@ router.get("/:id/tips/summary", verifyToken, async (req: Request, res: Response)
 // GET route to stream video
 router.get("/:id/stream", async (req: Request, res: Response) => {
   try {
+    console.log(`Received video streaming request. Video ID: ${req.params.id}`)
     const video = await Video.findById(req.params.id)
     if (!video) {
+      console.log(`Video not found. ID: ${req.params.id}`)
       return res.status(404).json({ message: "Video not found" })
     }
+    console.log(`Video document found. URL: ${video.url}`)
 
     // Check if the video.url is already a full URL
     let videoUrl: URL
     try {
       videoUrl = new URL(video.url)
+      console.log(`Video URL is valid. URL: ${videoUrl.toString()}`)
     } catch {
       // If video.url is not a valid URL, assume it's a key and construct the S3 URL
       videoUrl = new URL(
         `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${video.url}`,
       )
+      console.log(`Constructed S3 URL for video. URL: ${videoUrl.toString()}`)
     }
 
     // Get a signed URL for the video
@@ -470,10 +487,13 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
       Key: videoUrl.pathname.slice(1), // Remove leading '/'
     }
 
+    console.log(`Generating signed URL for video. Bucket: ${s3Params.Bucket}, Key: ${s3Params.Key}`)
     const command = new GetObjectCommand(s3Params)
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+    console.log(`Generated signed URL for video. URL: ${signedUrl}`)
 
     // Redirect to the signed URL
+    console.log(`Redirecting to signed URL`)
     res.redirect(signedUrl)
   } catch (error: unknown) {
     console.error("Error streaming video:", error)
@@ -488,6 +508,8 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 })
 
 export default router
+
+
 
 
 
