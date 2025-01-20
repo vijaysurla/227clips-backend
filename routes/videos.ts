@@ -34,6 +34,7 @@ const upload = multer({ storage: storage })
 
 // Helper function to upload file to S3
 async function uploadFileToS3(file: Express.Multer.File, key: string) {
+  key = key.replace(/^\//, "") // Remove leading slash if present
   console.log(`Attempting to upload file to S3. Key: ${key}, File name: ${file.originalname}, Size: ${file.size} bytes`)
   const params = {
     Bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -65,13 +66,13 @@ router.post("/", verifyToken, upload.single("video"), async (req: Request, res: 
     const userId = (req as any).userId
 
     // Upload video to S3
-    const videoKey = `videos/${Date.now()}-${file.originalname}`
+    const videoKey = `videos/${Date.now()}-${file.originalname}`.replace(/^\//, "")
     console.log(`Uploading video to S3. Key: ${videoKey}`)
     const videoUrl = await uploadFileToS3(file, videoKey)
     console.log(`Video uploaded successfully. URL: ${videoUrl}`)
 
     // Generate and upload thumbnail
-    const thumbnailKey = `thumbnails/${Date.now()}-${path.parse(file.originalname).name}.jpg`
+    const thumbnailKey = `thumbnails/${Date.now()}-${path.parse(file.originalname).name}.jpg`.replace(/^\//, "")
     console.log(`Uploading thumbnail to S3. Key: ${thumbnailKey}`)
     const thumbnailUrl = await uploadFileToS3(file, thumbnailKey)
     console.log(`Thumbnail uploaded successfully. URL: ${thumbnailUrl}`)
@@ -475,16 +476,15 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
       console.log(`Video URL is valid. URL: ${videoUrl.toString()}`)
     } catch {
       // If video.url is not a valid URL, assume it's a key and construct the S3 URL
-      videoUrl = new URL(
-        `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${video.url}`,
-      )
+      const key = video.url.replace(/^\//, "") // Remove leading slash if present
+      videoUrl = new URL(`https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`)
       console.log(`Constructed S3 URL for video. URL: ${videoUrl.toString()}`)
     }
 
     // Get a signed URL for the video
     const s3Params = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
-      Key: videoUrl.pathname.slice(1), // Remove leading '/'
+      Key: videoUrl.pathname.replace(/^\//, ""), // Remove leading slash
     }
 
     console.log(`Generating signed URL for video. Bucket: ${s3Params.Bucket}, Key: ${s3Params.Key}`)
@@ -508,6 +508,8 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 })
 
 export default router
+
+
 
 
 
