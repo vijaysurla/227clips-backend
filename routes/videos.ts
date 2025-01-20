@@ -118,7 +118,16 @@ router.get("/", async (req: Request, res: Response) => {
     const videos = await Video.find({ privacy: "public" })
       .populate("user", "username displayName avatar")
       .sort({ createdAt: -1 })
-    res.json(videos)
+
+    const videosWithFullUrls = videos.map((video) => ({
+      ...video.toObject(),
+      url: `${process.env.API_URL}/videos/${video._id}/stream`,
+      thumbnail: video.thumbnail.startsWith("http")
+        ? video.thumbnail
+        : `${process.env.API_URL}/videos/${video._id}/thumbnail`,
+    }))
+
+    res.json(videosWithFullUrls)
   } catch (error) {
     console.error("Error fetching videos:", error)
     res.status(500).json({ message: "Server error while fetching videos" })
@@ -469,22 +478,15 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
     }
     console.log(`Video document found. URL: ${video.url}`)
 
-    // Check if the video.url is already a full URL
-    let videoUrl: URL
-    try {
-      videoUrl = new URL(video.url)
-      console.log(`Video URL is valid. URL: ${videoUrl.toString()}`)
-    } catch {
-      // If video.url is not a valid URL, assume it's a key and construct the S3 URL
-      const key = video.url.replace(/^\//, "") // Remove leading slash if present
-      videoUrl = new URL(`https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`)
-      console.log(`Constructed S3 URL for video. URL: ${videoUrl.toString()}`)
-    }
+    // Construct the S3 URL
+    const key = video.url.replace(/^\//, "") // Remove leading slash if present
+    const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+    console.log(`Constructed S3 URL for video. URL: ${s3Url}`)
 
     // Get a signed URL for the video
     const s3Params = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
-      Key: videoUrl.pathname.replace(/^\//, ""), // Remove leading slash
+      Key: key,
     }
 
     console.log(`Generating signed URL for video. Bucket: ${s3Params.Bucket}, Key: ${s3Params.Key}`)
@@ -508,6 +510,8 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
 })
 
 export default router
+
+
 
 
 
