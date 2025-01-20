@@ -14,6 +14,8 @@
     "node": "18.x"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.731.1",
+    "@aws-sdk/s3-request-presigner": "^3.731.1",
     "@pinetwork-js/api-typing": "^0.7.0",
     "@pinetwork-js/sdk": "^0.7.0",
     "@types/cors": "^2.8.12",

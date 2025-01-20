@@ -14,61 +14,77 @@ import {
   TipDocument,
 } from "../models/schemas"
 import { verifyToken } from "./users"
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 const router = express.Router()
 
-// Configure multer for video upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, "../../uploads")
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-    cb(null, uploadDir)
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname))
+// Configure AWS S3
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
 })
 
+// Configure multer for video upload
+const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
 
-// POST route to handle video upload
-router.post("/", verifyToken, (req: Request, res: Response, next: NextFunction) => {
-  upload.single("video")(req, res, async (err: any) => {
-    if (err instanceof multer.MulterError) {
-      return res.status(400).json({ message: "File upload error", error: err.message })
-    } else if (err) {
-      return res.status(500).json({ message: "Unknown error", error: err.message })
-    }
+// Helper function to upload file to S3
+async function uploadFileToS3(file: Express.Multer.File, key: string) {
+  const params = {
+    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Key: key,
+    Body: file.buffer,
+    ContentType: file.mimetype,
+  }
 
-    const file = (req as any).file
+  const command = new PutObjectCommand(params)
+  await s3Client.send(command)
+
+  return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+}
+
+// POST route to handle video upload
+router.post("/", verifyToken, upload.single("video"), async (req: Request, res: Response) => {
+  try {
+    const file = req.file
     if (!file) {
       return res.status(400).json({ message: "No video file uploaded" })
     }
 
-    const { title, description, privacy, thumbnail } = req.body
+    const { title, description, privacy } = req.body
     const userId = (req as any).userId
 
-    try {
-      const video = new Video({
-        title,
-        description,
-        url: `/uploads/${file.filename}`,
-        thumbnail: thumbnail || "/placeholder.svg", // Use provided thumbnail or default
-        user: userId,
-        privacy: privacy || "public",
-      })
+    // Upload video to S3
+    const videoKey = `videos/${Date.now()}-${file.originalname}`
+    const videoUrl = await uploadFileToS3(file, videoKey)
 
-      const savedVideo = await video.save()
-      await User.findByIdAndUpdate(userId, { $inc: { uploadedVideosCount: 1 } })
-      res.status(201).json(savedVideo)
-    } catch (error) {
-      console.error("Error uploading video:", error)
-      res.status(500).json({ message: "Server error while uploading video" })
-    }
-  })
+    // Generate and upload thumbnail
+    // Note: For this example, we're using the first frame of the video as a thumbnail.
+    // In a production environment, you might want to use a library like ffmpeg to generate a proper thumbnail.
+    const thumbnailKey = `thumbnails/${Date.now()}-${path.parse(file.originalname).name}.jpg`
+    const thumbnailUrl = await uploadFileToS3(file, thumbnailKey)
+
+    const video = new Video({
+      title,
+      description,
+      url: videoUrl,
+      thumbnail: thumbnailUrl,
+      user: userId,
+      privacy: privacy || "public",
+    })
+
+    const savedVideo = await video.save()
+    await User.findByIdAndUpdate(userId, { $inc: { uploadedVideosCount: 1 } })
+
+    res.status(201).json(savedVideo)
+  } catch (error) {
+    console.error("Error uploading video:", error)
+    res.status(500).json({ message: "Server error while uploading video" })
+  }
 })
 
 // GET route to fetch videos for a specific user
@@ -118,18 +134,8 @@ router.get("/:id/thumbnail", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Thumbnail not found" })
     }
 
-    // If the thumbnail is a full URL, redirect to it
-    if (video.thumbnail.startsWith("http")) {
-      return res.redirect(video.thumbnail)
-    }
-
-    // Otherwise, serve the file from the server
-    const thumbnailPath = path.join(__dirname, "..", "..", video.thumbnail)
-    if (fs.existsSync(thumbnailPath)) {
-      res.sendFile(thumbnailPath)
-    } else {
-      res.status(404).json({ message: "Thumbnail file not found" })
-    }
+    // Redirect to the S3 URL
+    res.redirect(video.thumbnail)
   } catch (error) {
     console.error("Error serving thumbnail:", error)
     res.status(500).json({ message: "Server error while serving thumbnail" })
@@ -306,14 +312,21 @@ router.delete("/:id", verifyToken, async (req: Request, res: Response) => {
       return res.status(403).json({ message: "You are not authorized to delete this video" })
     }
 
-    // Delete the video file
-    const videoPath = path.join(__dirname, "..", "..", video.url)
-    if (fs.existsSync(videoPath)) {
-      fs.unlinkSync(videoPath)
-      console.log("Video file deleted:", videoPath)
-    } else {
-      console.log("Video file not found:", videoPath)
-    }
+    // Delete the video file from S3
+    const videoKey = new URL(video.url).pathname.slice(1) // Remove leading '/'
+    const deleteVideoCommand = new DeleteObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: videoKey,
+    })
+    await s3Client.send(deleteVideoCommand)
+
+    // Delete the thumbnail from S3
+    const thumbnailKey = new URL(video.thumbnail).pathname.slice(1) // Remove leading '/'
+    const deleteThumbnailCommand = new DeleteObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: thumbnailKey,
+    })
+    await s3Client.send(deleteThumbnailCommand)
 
     // Delete the video document
     const deletedVideo = await Video.findByIdAndDelete(videoId)
@@ -433,6 +446,8 @@ router.get("/:id/tips/summary", verifyToken, async (req: Request, res: Response)
 })
 
 export default router
+
+
 
 
 
