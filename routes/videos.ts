@@ -2,7 +2,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import multer from "multer"
 import path from "path"
 import fs from "fs"
-import mongoose, { Types, ObjectId } from "mongoose"
+import mongoose, { Types } from "mongoose"
 import {
   Video,
   User,
@@ -22,6 +22,7 @@ import {
   S3ServiceException,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import config from "../config"
 
 const router = express.Router()
 
@@ -133,7 +134,7 @@ router.get("/user/:userId", verifyToken, async (req: Request, res: Response) => 
 // GET route to fetch all videos (public)
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const s3BucketUrl = process.env.AWS_S3_BUCKET_URL || "https://your-bucket-name.s3.amazonaws.com"
+    const s3BucketUrl = `https://${config.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`
     const videos = await Video.find({ privacy: "public" })
       .populate("user", "username displayName avatar")
       .sort({ createdAt: -1 })
@@ -495,38 +496,44 @@ router.get("/:id/stream", async (req: Request, res: Response) => {
     }
     console.log(`Video document found. URL: ${video.url}`)
 
-    // Construct the S3 URL
-    const key = video.url.replace(/^\//, "") // Remove leading slash if present
-    const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
-    console.log(`Constructed S3 URL for video. URL: ${s3Url}`)
+    // Parse the S3 URL to get the key
+    const url = new URL(video.url)
+    const key = url.pathname.slice(1) // Remove leading slash
 
-    // Get a signed URL for the video
-    const s3Params = {
+    const contentType = "video/mp4" // Adjust this if you have different video formats
+    const command = new GetObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: key,
-    }
-
-    console.log(`Generating signed URL for video. Bucket: ${s3Params.Bucket}, Key: ${s3Params.Key}`)
-    const command = new GetObjectCommand(s3Params)
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
-    console.log(`Generated signed URL for video. URL: ${signedUrl}`)
-
-    // Redirect to the signed URL
-    console.log(`Redirecting to signed URL`)
-    res.redirect(signedUrl)
-  } catch (error: unknown) {
-    console.error("Error streaming video:", error)
-    res.status(500).json({
-      message: "Server error while streaming video",
-      error:
-        process.env.NODE_ENV === "development" && error instanceof Error
-          ? error.message
-          : "An unexpected error occurred",
     })
+    const signedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 3600,
+    })
+    const urlWithContentType = `${signedUrl}&response-content-type=${encodeURIComponent(contentType)}`
+
+    console.log(`Generated signed URL for video. URL: ${urlWithContentType}`)
+
+    // Set the Content-Type header
+    res.setHeader("Content-Type", contentType)
+
+    // Redirect to the signed URL with content type
+    res.redirect(urlWithContentType)
+  } catch (error) {
+    console.error("Error streaming video:", error)
+    res.status(500).json({ message: "Server error while streaming video" })
   }
 })
 
 export default router
+
+
+
+
+
+
+
+
+
+
 
 
 
