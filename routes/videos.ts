@@ -14,7 +14,7 @@ import {
   TipDocument,
 } from "../models/schemas"
 import { verifyToken } from "./users"
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 const router = express.Router()
@@ -445,7 +445,35 @@ router.get("/:id/tips/summary", verifyToken, async (req: Request, res: Response)
   }
 })
 
+// GET route to stream video
+router.get("/:id/stream", async (req: Request, res: Response) => {
+  try {
+    const video = await Video.findById(req.params.id)
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" })
+    }
+
+    // Get a signed URL for the video
+    const s3Params = {
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: new URL(video.url).pathname.slice(1), // Remove leading '/'
+      Expires: 60 * 5, // URL expires in 5 minutes
+    }
+
+    const command = new GetObjectCommand(s3Params)
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+
+    // Redirect to the signed URL
+    res.redirect(signedUrl)
+  } catch (error) {
+    console.error("Error streaming video:", error)
+    res.status(500).json({ message: "Server error while streaming video" })
+  }
+})
+
 export default router
+
+
 
 
 

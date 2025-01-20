@@ -14,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "typeRoots": ["./node_modules/@types", "./types"],
-    "types": ["node", "express", "express-session", "multer"],
+    "types": ["node", "express", "express-session", "multer", "@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner"],
     "paths": {
       "express": ["./node_modules/@types/express"]
     }
@@ -22,6 +22,8 @@
   "include": ["**/*.ts", "types/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
+
+
 
 
 
