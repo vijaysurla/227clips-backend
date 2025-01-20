@@ -37,7 +37,7 @@ mongoose
 // CORS configuration
 app.use(
   cors({
-    origin: config.frontendUrl,
+    origin: [config.frontendUrl, "http://localhost:3000"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -151,6 +151,8 @@ app.listen(PORT, () => {
 })
 
 export default app
+
+
 
 
 
